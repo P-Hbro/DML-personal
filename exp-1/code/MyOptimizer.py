@@ -1,5 +1,6 @@
 import torch
 
+
 class MyOptimizer(object):
     def __init__(self, params, lr=0.001):
         self.params = list(params)
@@ -7,7 +8,7 @@ class MyOptimizer(object):
 
     def step(self):
         with torch.no_grad:
-        # optimize the parameters
+            # optimize the parameters
             for p in self.params:
                 if p.grad is None:
                     continue
@@ -39,6 +40,23 @@ class MyOptimizerAdam(MyOptimizer):
             # 建议：
             # 可以在self.state中记录每个参数的总迭代次数、累加梯度、累加梯度的平方
             # 例如self.state[p] = dict() ...
+            st = self.state[p]
+            if len(st) == 0:
+                st = dict()
+                st['COUNT'] = 0
+                st['SUM_dP'] = torch.zeros_like(p)
+                st['SUM_SQRT_dP'] = torch.zeros_like(p)
+
+            count = st['COUNT'] + 1
+            sum_d_p = st['SUM_dP']
+            sum_sqt_d_p = st['SUM_SQRT_dP']
+            sum_d_p.mul_(self.b1).add_((1-self.b1) * p.grad)
+            sum_sqt_d_p.mul_(self.b2).add_((1-self.b2) * p.grad ** 2)
+
+            momentum = sum_d_p / (1 - self.b1 ** count)
+            sigma = sum_sqt_d_p / (1 - self.b2 ** count)
+            p.add_(-self.lr * momentum / (sigma.sqrt() + eps))
+            st['COUNT'] = count
             pass
 
     def zero_grad(self):
