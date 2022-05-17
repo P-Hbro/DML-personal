@@ -1,10 +1,11 @@
 import os, sys
 import torch
 import torch.nn as nn
-import torch.nn.functional as F 
+import torch.nn.functional as F
 import torchvision
 
 from MyOptimizer import MyOptimizer, MyOptimizerAdam
+
 
 class Net(nn.Module):
     def __init__(self, in_channels=1, num_classes=10):
@@ -13,15 +14,15 @@ class Net(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=6, kernel_size=5, stride=1, padding=2)
         self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5, stride=1, padding=0)
 
-        self.fc1 = nn.Linear(16*5*5, 120)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, num_classes)
-    
+
     def forward(self, x):
         """
         Args:
             x: (b, 1, 28, 28)
         """
-        out = F.max_pool2d(F.relu(self.conv1(x)), (2, 2)) 
+        out = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
         out = F.max_pool2d(F.relu(self.conv2(out)), (2, 2))
         # flatten the feature map
         out = out.flatten(1)
@@ -31,6 +32,7 @@ class Net(nn.Module):
         out = self.fc2(out)
 
         return out
+
 
 def train(model, train_loader, optimizer, criterion, num_epochs=1):
     # train
@@ -45,7 +47,7 @@ def train(model, train_loader, optimizer, criterion, num_epochs=1):
     # num_epochs: 训练的总epoch数
 
     ###########################################################
-    
+
     print("Start training ...")
     loss_total = 0.
     model.train()
@@ -66,13 +68,13 @@ def train(model, train_loader, optimizer, criterion, num_epochs=1):
             loss.backward()
             optimizer.step()
 
-            
             loss_total += loss.item()
-            if i % 20 == 19:    # print every 2000 mini-batches
+            if i % 20 == 19:  # print every 2000 mini-batches
                 print('epoch: %d, iters: %5d, loss: %.3f' % (epoch + 1, i + 1, loss_total / 20))
                 loss_total = 0.0
-    
+
     print("Training Finished!")
+
 
 def test(model: nn.Module, test_loader):
     # test
@@ -90,6 +92,7 @@ def test(model: nn.Module, test_loader):
         correct, size,
         100 * correct / size))
 
+
 def main():
     # construct the model
     model = Net(in_channels=1, num_classes=10)
@@ -98,8 +101,8 @@ def main():
     DATA_PATH = ""
 
     transform = torchvision.transforms.Compose(
-                [torchvision.transforms.ToTensor()]
-                )
+        [torchvision.transforms.ToTensor()]
+    )
 
     train_set = torchvision.datasets.MNIST(DATA_PATH, train=True, download=True, transform=transform)
     test_set = torchvision.datasets.MNIST(DATA_PATH, train=False, download=True, transform=transform)
@@ -114,6 +117,7 @@ def main():
     train(model, train_loader, optimizer, criterion)
     test(model, test_loader)
 
+
 if __name__ == "__main__":
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     main()
