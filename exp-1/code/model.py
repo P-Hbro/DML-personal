@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 import torchvision
-
+import torch.optim as optim
 from MyOptimizer import MyOptimizer, MyOptimizerAdam
 
 class Net(nn.Module):
@@ -108,8 +108,9 @@ def main():
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=32, shuffle=False)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = MyOptimizer(model.parameters(), lr=0.01)
-    # optimizer = MyOptimizerAdam(model.parameters(), lr=0.01, b1=0.9, b2=0.999)
+    #optimizer = MyOptimizer(model.parameters(), lr=0.01)
+    #optimizer = MyOptimizerAdam(model.parameters(), lr=0.01, b1=0.9, b2=0.999)
+    optimizer = optim.Adam(model.parameters(), lr=0.01, betas=(0.9, 0.999))
 
     train(model, train_loader, optimizer, criterion)
     test(model, test_loader)
