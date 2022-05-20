@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torchvision
 import torch.optim as optim
 from MyOptimizer import MyOptimizer, MyOptimizerAdam
-
+import matplotlib.pyplot as plt
 
 class Net(nn.Module):
     def __init__(self, in_channels=1, num_classes=10):
@@ -34,7 +34,7 @@ class Net(nn.Module):
         return out
 
 
-def train(model, train_loader, optimizer, criterion, num_epochs=1):
+def train(model, train_loader, optimizer, criterion, num_epochs=1, GD=False):
     # train
 
     ###########################################################
@@ -51,7 +51,9 @@ def train(model, train_loader, optimizer, criterion, num_epochs=1):
     print("Start training ...")
     loss_total = 0.
     model.train()
+    loss_log = []
     for epoch in range(num_epochs):
+        loss_total = 0.
         for i, batch_data in enumerate(train_loader):
             # with dist_autograd.context() as context_id:
             inputs, labels = batch_data
@@ -60,20 +62,22 @@ def train(model, train_loader, optimizer, criterion, num_epochs=1):
             outputs = model(inputs)
 
             loss = criterion(outputs, labels)
-
-            # pipeline
-            # dist_autograd.backward(context, [loss])
-            # optimizer.step()
-            optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
 
+            if not GD:
+                optimizer.step()
+                optimizer.zero_grad()
             loss_total += loss.item()
+
             if i % 20 == 19:  # print every 2000 mini-batches
                 print('epoch: %d, iters: %5d, loss: %.3f' % (epoch + 1, i + 1, loss_total / 20))
+                loss_log.append(loss_total / 20)
                 loss_total = 0.0
-
+        if GD:
+            optimizer.step()
+            optimizer.zero_grad()
     print("Training Finished!")
+    return loss_log
 
 
 def test(model: nn.Module, test_loader):
@@ -107,16 +111,32 @@ def main():
     train_set = torchvision.datasets.MNIST(DATA_PATH, train=True, download=True, transform=transform)
     test_set = torchvision.datasets.MNIST(DATA_PATH, train=False, download=True, transform=transform)
 
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=1, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=32, shuffle=False)
 
     criterion = nn.CrossEntropyLoss()
-    #optimizer = MyOptimizer(model.parameters(), lr=0.01)
-    #optimizer = MyOptimizerAdam(model.parameters(), lr=0.01, b1=0.9, b2=0.999)
-    optimizer = optim.Adam(model.parameters(), lr=0.1, betas=(0.9, 0.999))
-    #optimizer = optim.SGD(model.parameters(), lr=0.01)
-    train(model, train_loader, optimizer, criterion)
+    optimizer = MyOptimizer(model.parameters(), lr=0.0004)
+    loss_log0 = train(model, train_loader, optimizer, criterion, num_epochs=5, GD=True)
     test(model, test_loader)
+    model = Net(in_channels=1, num_classes=10)
+    model.cuda()
+    optimizer = MyOptimizer(model.parameters(), lr=0.01)
+    loss_log1 = train(model, train_loader, optimizer, criterion, num_epochs=5)
+    test(model, test_loader)
+    model = Net(in_channels=1, num_classes=10)
+    model.cuda()
+    optimizer = MyOptimizerAdam(model.parameters(), lr=0.01, b1=0.9, b2=0.999)
+    loss_log2 = train(model, train_loader, optimizer, criterion, num_epochs=5)
+    test(model, test_loader)
+    iter = range(0, len(loss_log1))
+    plt.plot(iter, loss_log0, label='MY_GD')
+    plt.plot(iter, loss_log1, label='MY_SGD')
+    plt.plot(iter, loss_log2, label='MY_Adam')
+    plt.xlabel("iter")
+    plt.ylabel("loss")
+    plt.legend()
+    plt.show()
+
 
 
 if __name__ == "__main__":

@@ -37,15 +37,11 @@ class MyOptimizerAdam(MyOptimizer):
         for p in self.params:
             if p.grad is None:
                 continue
-            # write your code here
-            # 建议：
-            # 可以在self.state中记录每个参数的总迭代次数、累加梯度、累加梯度的平方
-            # 例如self.state[p] = dict() ...
             if not p in self.state:
                 st = dict()
                 st['COUNT'] = 0
                 st['SUM_dP'] = torch.zeros_like(p)
-                st['SUM_SQRT_dP'] = torch.zeros_like(p)
+                st['SUM_SQ_dP'] = torch.zeros_like(p)
                 self.state[p] = st
             
             st = self.state[p]
