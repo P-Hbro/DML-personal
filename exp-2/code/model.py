@@ -100,7 +100,7 @@ def test(model: nn.Module, test_loader):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_devices", default=1, type=int, help="The distributd world size.")
-    parser.add_argument("--local_rank", default=0, type=int, help="The local rank of device.")
+    parser.add_argument("--rank", default=0, type=int, help="The local rank of device.")
     parser.add_argument('--gpu', default="0", type=str, help='GPU ID')
     args = parser.parse_args()
 
@@ -113,10 +113,9 @@ if __name__ == "__main__":
     # args.cuda = True  # cuda
 
     # distributed initilization
-    dist_utils.dist_init(args.n_devices, args.local_rank)
+    dist_utils.dist_init(args.n_devices, args.rank)
     # construct the model
     model = Net(in_channels=1, num_classes=10)
-    print(os.environ["CUDA_VISIBLE_DEVICES"])
     model.cuda()  # cuda
 
     # construct the dataset
@@ -128,7 +127,7 @@ if __name__ == "__main__":
 
     from torch.utils.data.distributed import DistributedSampler
 
-    sampler = DistributedSampler(dataset=train_set, num_replicas=args.n_devices, rank=args.local_rank)
+    sampler = DistributedSampler(dataset=train_set, num_replicas=args.n_devices, rank=args.rank)
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=False, sampler=sampler)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=32, shuffle=False)
