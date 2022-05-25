@@ -53,7 +53,7 @@ def train(model, train_loader, criterion, optimizer, num_epochs=2):
         for i, batch_data in enumerate(train_loader):
             inputs, labels = batch_data
             # cuda
-            inputs, labels = inputs.cuda(), labels.cuda()
+            inputs, labels = inputs.to(dist_utils.get_local_rank()), labels.to(dist_utils.get_local_rank())
 
             outputs = model(inputs)
 
@@ -109,14 +109,14 @@ def parse_args():
 if __name__ == "__main__":
     # get args
     args = parse_args()
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     # args.cuda = True  # cuda
 
     # distributed initilization
     dist_utils.dist_init(args.n_devices, args.rank)
     # construct the model
     model = Net(in_channels=1, num_classes=10)
-    model.cuda()  # cuda
+    model.to(dist_utils.get_local_rank())  # cuda
 
     # construct the dataset
     transform = torchvision.transforms.Compose(
