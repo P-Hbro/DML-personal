@@ -1,16 +1,18 @@
 import os
 from urllib import parse
 import torch
-from torch.distributed.distributed_c10d import get_rank, get_world_size 
+from torch.distributed.distributed_c10d import get_rank, get_world_size
 import torch.nn as nn
-import torch.nn.functional as F 
+import torch.nn.functional as F
 import torchvision
 
 import argparse
-import torch.distributed as dist 
+import torch.distributed as dist
 import torch.multiprocessing as mp
 import dist_utils
 import time
+
+
 # import matplotlib.pyplot as plt
 
 class Net(nn.Module):
@@ -20,9 +22,9 @@ class Net(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=6, kernel_size=5, stride=1, padding=2)
         self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5, stride=1, padding=0)
 
-        self.fc1 = nn.Linear(16*5*5, 120)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, num_classes)
-    
+
     def forward(self, x):
         """
         Args:
@@ -64,18 +66,19 @@ def train(model, train_loader, criterion, optimizer, num_epochs=2):
             optimizer.zero_grad()
             loss.backward()
             # averge the gradients of model parameters
-            dist_utils.allreduce_average_gradients(model)
+            function(model)
 
             optimizer.step()
             loss_total += loss.item()
 
-            if i % 20 == 19:    # print every 2000 mini-batches
-                print('Device: %d epoch: %d, iters: %5d, loss: %.3f' % (dist_utils.get_local_rank(), epoch + 1, i + 1, loss_total / 20))
+            if i % 20 == 19:  # print every 2000 mini-batches
+                print('Device: %d epoch: %d, iters: %5d, loss: %.3f' % (
+                dist_utils.get_local_rank(), epoch + 1, i + 1, loss_total / 20))
                 loss_total = 0.0
 
     print("Training Finished!")
-    endtime = time.time()#结束时间
-    train_time = endtime-starttime
+    endtime = time.time()  # 结束时间
+    train_time = endtime - starttime
     print("Training time: {}".format(train_time))
 
 
@@ -87,8 +90,8 @@ def test(model: nn.Module, test_loader):
     print("testing ...")
     with torch.no_grad():
         for inputs, labels in test_loader:
-            inputs = inputs.cuda()
-            labels = labels.cuda()
+            inputs = inputs.to(dist_utils.get_local_rank())
+            labels = labels.to(dist_utils.get_local_rank())
 
             output = model(inputs)
             pred = output.data.max(1, keepdim=True)[1]
@@ -97,21 +100,25 @@ def test(model: nn.Module, test_loader):
         correct, size,
         100 * correct / size))
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_devices", default=1, type=int, help="The distributd world size.")
     parser.add_argument("--rank", default=0, type=int, help="The local rank of device.")
     parser.add_argument('--gpu', default="0", type=str, help='GPU ID')
+    parser.add_argument('--function', default='reduce', type=str)
     args = parser.parse_args()
 
     return args
 
+
+function = None
 if __name__ == "__main__":
     # get args
     args = parse_args()
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     # args.cuda = True  # cuda
-
+    function = dist_utils.allreduce_average_gradients if args.function == 'reduce' else dist_utils.allgather_average_gradients
     # distributed initilization
     dist_utils.dist_init(args.n_devices, args.rank)
     # construct the model
