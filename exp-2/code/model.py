@@ -113,7 +113,8 @@ def parse_args():
 
 
 function = None
-if __name__ == "__main__":
+
+def train_parallel():
     # get args
     args = parse_args()
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -145,3 +146,8 @@ if __name__ == "__main__":
 
     train(model, train_loader, criterion, optimizer)
     test(model, test_loader)
+
+
+
+if __name__ == "__main__":
+    train_parallel()
