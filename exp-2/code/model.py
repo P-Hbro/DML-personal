@@ -42,16 +42,20 @@ class Net(nn.Module):
         return out
 
 
-def train(model, train_loader, criterion, optimizer, num_epochs=2):
+def train(communicator, model, train_loader, criterion, optimizer, num_epochs=2):
     # train
     print("Device {} starts training ...".format(dist_utils.get_local_rank()))
     loss_total = 0.
     model.train()
     # Loss_average = []
     dist_utils.init_parameters(model)
-
-    starttime = time.time()  # 当前时间
+    start_evt = torch.cuda.Event(enable_timing=True)
+    end_evt = torch.cuda.Event(enable_timing=True)
+    start_evt.record()# 当前时间
     for epoch in range(num_epochs):
+        # bad_node
+        #if(dist_utils.get_local_rank() == 0):
+        #    time.sleep(5)
         for i, batch_data in enumerate(train_loader):
             inputs, labels = batch_data
             # cuda
@@ -66,7 +70,7 @@ def train(model, train_loader, criterion, optimizer, num_epochs=2):
             optimizer.zero_grad()
             loss.backward()
             # averge the gradients of model parameters
-            function(model)
+            communicator(model)
 
             optimizer.step()
             loss_total += loss.item()
@@ -77,9 +81,12 @@ def train(model, train_loader, criterion, optimizer, num_epochs=2):
                 loss_total = 0.0
 
     print("Training Finished!")
-    endtime = time.time()  # 结束时间
-    train_time = endtime - starttime
-    print("Training time: {}".format(train_time))
+    
+    end_evt.record()
+    torch.cuda.synchronize()
+
+    whole_time = start_evt.elapsed_time(end_evt) # 结束时间
+    print("Training time: {}".format(whole_time))
 
 
 def test(model: nn.Module, test_loader):
@@ -112,7 +119,6 @@ def parse_args():
     return args
 
 
-function = None
 
 def train_parallel():
     # get args
@@ -142,8 +148,8 @@ def train_parallel():
     # construct the criterion and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-
-    train(model, train_loader, criterion, optimizer)
+    communicator = dist_utils.allreduce_average_gradients if args.function == 'reduce' else dist_utils.allgather_average_gradients
+    train(communicator, model, train_loader, criterion, optimizer)
     test(model, test_loader)
 
 
