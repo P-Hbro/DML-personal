@@ -67,8 +67,8 @@ def allreduce_average_gradients(model):
 
 
 def allgather_average_gradients(model):
-    size = float(dist.get_world_size())
+    size = dist.get_world_size()
     for param in model.parameters():
-        all_gradients = [torch.zeroslike(param.grad.data) for _ in range(size)]
+        all_gradients = [torch.zeros_like(param.grad.data) for _ in range(size)]
         dist.all_gather(all_gradients, param.grad.data)
         param.grad.data = torch.stack(all_gradients, dim=0).mean(dim=0)
