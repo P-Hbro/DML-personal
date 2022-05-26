@@ -119,7 +119,6 @@ def train_parallel():
     args = parse_args()
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     # args.cuda = True  # cuda
-    function = dist_utils.allreduce_average_gradients if args.function == 'reduce' else dist_utils.allgather_average_gradients
     # distributed initilization
     dist_utils.dist_init(args.n_devices, args.rank)
     # construct the model
