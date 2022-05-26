@@ -51,7 +51,7 @@ def train(model, train_loader, criterion, optimizer, num_epochs=5):
         for i, batch_data in enumerate(train_loader):
             inputs, labels = batch_data
             # cuda
-            inputs, labels = inputs.cuda(), labels.cuda()
+            inputs, labels = inputs.to(dist_utils.get_local_rank()), labels.to(dist_utils.get_local_rank())
 
             outputs = model(inputs)
 
@@ -82,8 +82,8 @@ def test(model: nn.Module, test_loader):
     print("testing ...")
     with torch.no_grad():
         for inputs, labels in test_loader:
-            inputs = inputs.cuda()
-            labels = labels.cuda()
+            inputs = inputs.to(dist_utils.get_local_rank())
+            labels = labels.to(dist_utils.get_local_rank())
             output = model(inputs)
             pred = output.data.max(1, keepdim=True)[1]
             correct += pred.eq(labels.data.view_as(pred)).sum().item()
@@ -109,6 +109,7 @@ if __name__ == "__main__":
 
     # construct the model
     model = Net(in_channels=1, num_classes=10)
+    model.to(dist_utils.get_local_rank())
     #model.to(args.rank)
     # construct the dataset
     transform = torchvision.transforms.Compose(
