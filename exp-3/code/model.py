@@ -1,7 +1,7 @@
-import os
+import os, sys
+from sampler import MySampler
 from urllib import parse
 import torch
-from torch.distributed.distributed_c10d import get_rank, get_world_size
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
@@ -9,12 +9,9 @@ import torchvision
 import argparse
 import torch.distributed as dist
 import torch.multiprocessing as mp
+
 import dist_utils
-import time
 
-
-# import matplotlib.pyplot as plt
-import numpy as np
 
 class Net(nn.Module):
     def __init__(self, in_channels=1, num_classes=10):
@@ -43,20 +40,14 @@ class Net(nn.Module):
         return out
 
 
-def train(communicator, model, train_loader, criterion, optimizer, num_epochs=2):
+def train(model, train_loader, criterion, optimizer, num_epochs=5):
     # train
     print("Device {} starts training ...".format(dist_utils.get_local_rank()))
     loss_total = 0.
     model.train()
-    # Loss_average = []
     dist_utils.init_parameters(model)
-    start_evt = torch.cuda.Event(enable_timing=True)
-    end_evt = torch.cuda.Event(enable_timing=True)
-    start_evt.record()# 当前时间
+
     for epoch in range(num_epochs):
-        # bad_node
-        #if(dist_utils.get_local_rank() == 0):
-        #    time.sleep(5)
         for i, batch_data in enumerate(train_loader):
             inputs, labels = batch_data
             # cuda
@@ -65,29 +56,22 @@ def train(communicator, model, train_loader, criterion, optimizer, num_epochs=2)
             outputs = model(inputs)
 
             loss = criterion(outputs, labels)
-            # Loss_each_epoch.append(loss.item())
 
             # pipeline
             optimizer.zero_grad()
             loss.backward()
             # averge the gradients of model parameters
-            communicator(model)
-
+            dist_utils.average_gradients(model)
             optimizer.step()
-            loss_total += loss.item()
 
+            loss_total += loss.item()
             if i % 20 == 19:  # print every 2000 mini-batches
                 print('Device: %d epoch: %d, iters: %5d, loss: %.3f' % (
                 dist_utils.get_local_rank(), epoch + 1, i + 1, loss_total / 20))
+
                 loss_total = 0.0
 
     print("Training Finished!")
-    
-    end_evt.record()
-    torch.cuda.synchronize()
-
-    whole_time = start_evt.elapsed_time(end_evt) # 结束时间
-    print("Training time: {}".format(whole_time))
 
 
 def test(model: nn.Module, test_loader):
@@ -100,7 +84,6 @@ def test(model: nn.Module, test_loader):
         for inputs, labels in test_loader:
             inputs = inputs.to(dist_utils.get_local_rank())
             labels = labels.to(dist_utils.get_local_rank())
-
             output = model(inputs)
             pred = output.data.max(1, keepdim=True)[1]
             correct += pred.eq(labels.data.view_as(pred)).sum().item()
@@ -114,45 +97,35 @@ def parse_args():
     parser.add_argument("--n_devices", default=1, type=int, help="The distributd world size.")
     parser.add_argument("--rank", default=0, type=int, help="The local rank of device.")
     parser.add_argument('--gpu', default="0", type=str, help='GPU ID')
-    parser.add_argument('--function', default='reduce', type=str)
     args = parser.parse_args()
-
     return args
 
 
-
-def train_parallel():
-    # get args
-    # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    # args.cuda = True  # cuda
+if __name__ == "__main__":
+    # get args 
+    args = parse_args()
     # distributed initilization
     dist_utils.dist_init(args.n_devices, args.rank)
+
     # construct the model
     model = Net(in_channels=1, num_classes=10)
-    model.to(dist_utils.get_local_rank())  # cuda
-
+    model.to(dist_utils.get_local_rank())
+    #model.to(args.rank)
     # construct the dataset
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor()]
     )
-    train_set = torchvision.datasets.MNIST("./data/", train=True, download=True, transform=transform)
-    test_set = torchvision.datasets.MNIST("./data/", train=False, download=True, transform=transform)
+    train_set = torchvision.datasets.MNIST("../data/", train=True, download=True, transform=transform)
+    test_set = torchvision.datasets.MNIST("../data/", train=False, download=True, transform=transform)
 
-    from torch.utils.data.distributed import DistributedSampler
-
-    sampler = DistributedSampler(dataset=train_set, num_replicas=args.n_devices, rank=args.rank)
+    sampler = MySampler(train_set, args.n_devices, args.rank, shuffle=True, seed=args.rank)
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=False, sampler=sampler)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=32, shuffle=False)
 
     # construct the criterion and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    communicator = dist_utils.allreduce_average_gradients if args.function == 'reduce' else dist_utils.allgather_average_gradients
-    train(communicator, model, train_loader, criterion, optimizer)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+
+    train(model, train_loader, criterion, optimizer)
     test(model, test_loader)
-
-
-
-if __name__ == "__main__":
-    train_parallel()
