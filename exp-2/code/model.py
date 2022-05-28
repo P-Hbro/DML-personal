@@ -12,6 +12,7 @@ import torch.multiprocessing as mp
 import dist_utils
 import time
 # import matplotlib.pyplot as plt
+import numpy as np
 
 class Net(nn.Module):
     def __init__(self, in_channels=1, num_classes=10):
@@ -108,7 +109,6 @@ def parse_args():
 
 if __name__ == "__main__":
     # get args
-    args = parse_args()
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     # args.cuda = True  # cuda
 
