@@ -12,9 +12,9 @@ import torch.multiprocessing as mp
 import dist_utils
 import time
 
-
 # import matplotlib.pyplot as plt
 import numpy as np
+
 
 class Net(nn.Module):
     def __init__(self, in_channels=1, num_classes=10):
@@ -52,10 +52,10 @@ def train(communicator, model, train_loader, criterion, optimizer, num_epochs=2)
     dist_utils.init_parameters(model)
     start_evt = torch.cuda.Event(enable_timing=True)
     end_evt = torch.cuda.Event(enable_timing=True)
-    start_evt.record()# 当前时间
+    start_evt.record()  # 当前时间
     for epoch in range(num_epochs):
         # bad_node
-        #if(dist_utils.get_local_rank() == 0):
+        # if(dist_utils.get_local_rank() == 0):
         #    time.sleep(5)
         for i, batch_data in enumerate(train_loader):
             inputs, labels = batch_data
@@ -78,15 +78,15 @@ def train(communicator, model, train_loader, criterion, optimizer, num_epochs=2)
 
             if i % 20 == 19:  # print every 2000 mini-batches
                 print('Device: %d epoch: %d, iters: %5d, loss: %.3f' % (
-                dist_utils.get_local_rank(), epoch + 1, i + 1, loss_total / 20))
+                    dist_utils.get_local_rank(), epoch + 1, i + 1, loss_total / 20))
                 loss_total = 0.0
 
     print("Training Finished!")
-    
+
     end_evt.record()
     torch.cuda.synchronize()
 
-    whole_time = start_evt.elapsed_time(end_evt) # 结束时间
+    whole_time = start_evt.elapsed_time(end_evt)  # 结束时间
     print("Training time: {}".format(whole_time))
 
 
@@ -120,9 +120,9 @@ def parse_args():
     return args
 
 
-
 def train_parallel():
     # get args
+    args = parse_args()
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     # args.cuda = True  # cuda
     # distributed initilization
@@ -151,7 +151,6 @@ def train_parallel():
     communicator = dist_utils.allreduce_average_gradients if args.function == 'reduce' else dist_utils.allgather_average_gradients
     train(communicator, model, train_loader, criterion, optimizer)
     test(model, test_loader)
-
 
 
 if __name__ == "__main__":
